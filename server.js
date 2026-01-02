@@ -11,9 +11,25 @@ const schedule = require("node-schedule");
 const fs = require("fs");
 
 // ---------------- Database ----------------
-const db = new sqlite3.Database("sensor_data.db", err => {
-    if (err) console.error(err.message);
+const dbPath = path.join(__dirname, "sensor_data.db");
+const db = new sqlite3.Database(dbPath, err => {
+    if (err) console.error("DB error:", err.message);
     else console.log("Connected to SQLite database.");
+
+    // Ensure table exists
+    db.run(`
+        CREATE TABLE IF NOT EXISTS sensor_data (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            room_id INTEGER,
+            temperature REAL,
+            humidity REAL,
+            light INTEGER,
+            timestamp TEXT
+        )
+    `, err => {
+        if (err) console.error("Table creation error:", err.message);
+        else console.log("Table sensor_data exists or created successfully.");
+    });
 });
 
 // ---------------- Express ----------------
@@ -21,11 +37,10 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 app.use(express.static(path.join(__dirname, "public")));
 
-// ---------------- Health Check Route for Render ----------------
+// Health check route for Render
 app.get("/", (req, res) => {
     res.send("Dashboard server is running!");
 });
-
 
 const server = app.listen(PORT, () =>
     console.log(`Server running on port ${PORT}`)
@@ -54,7 +69,7 @@ wss.on("connection", ws => {
             db.run(
                 `INSERT INTO sensor_data (room_id, temperature, humidity, light, timestamp)
                  VALUES (?, ?, ?, ?, ?)`,
-                [i, temp, hum, light, now],
+                [i, temp, hum, light, now]
             );
         }
 
@@ -63,88 +78,17 @@ wss.on("connection", ws => {
             console.log("~ Data sent & stored:", data);
         }
 
-        // update Excel
+        // Update Excel (optional)
         exportToExcel().catch(err =>
             console.error(" ! Excel update error:", err.message)
         );
-    } 
+    }
+
     sendSensorData(); // send immediately
-    const interval = setInterval(sendSensorData, 300000); //every 5 min
+    const interval = setInterval(sendSensorData, 300000); // every 5 min
 
     ws.on("close", () => {
         clearInterval(interval);
         console.log("Client disconnected");
     });
 });
-
-
-// ---------------- MIDNIGHT EMAIL ----------------
-schedule.scheduleJob("0 0 * * *", async () => {
-    console.log("~ Midnight export & email started...");
-    try {
-        const filePath = await exportToExcel();
-
-        // Check if file exists and has data
-        if (!filePath) {
-            console.log("! No Excel file generated! — email skipped");
-            return;
-        }
-
-        // check if the file has more than just headers
-        const workbook = XLSX.readFile(filePath);
-        let hasData = false;
-        workbook.SheetNames.forEach(sheetName => {
-            const sheet = workbook.Sheets[sheetName];
-            const rows = XLSX.utils.sheet_to_json(sheet);
-            if (rows.length > 0) hasData = true;
-        });
-
-        if (!hasData) {
-            console.log("! Excel file is empty ! — email skipped");
-            return;
-        }
-
-        await sendEmail(filePath);
-        console.log("Midnight email sent successfully!");
-
-    } catch (err) {
-        console.error("!Midnight task error :", err.message);
-    }
-});
-
-
-// ---------------- Optional: Immediate test ----------------
-// Uncomment to test email 1 minute after server starts
-/*
-schedule.scheduleJob(new Date(Date.now() + 60000), async () => {
-    console.log(" Test email started...");
-    try {
-        const filePath = await exportToExcel();
-        if (!filePath) {
-            console.log(" No data to export yet — email skipped");
-            return;
-        }
-        await sendEmail(filePath);
-        console.log("Test email sent successfully");
-    } catch (err) {
-        console.error("Test email error:", err.message);
-    }
-});
-*/
-
-// At the bottom of your server.js (temporarily)
-// (async () => {
-//     try {
-//         console.log("Test: exporting yesterday's Excel and sending email...");
-//         const filePath = await exportToExcel();
-//         if (!filePath) {
-//             console.log(" No data to export — email skipped");
-//             return;
-//         }
-//         await sendEmail(filePath);
-//         console.log("Test email sent successfully!");
-//     } catch (err) {
-//         console.error("Test email failed:", err.message);
-//     }
-// })();
-

@@ -43,3 +43,23 @@ h1 {
     margin: 8px 0;
     color: #444;
 }
+/* Phones*/
+@media (max-width: 600px) {
+    .card-container {
+        grid-template-columns: repeat(2, 1fr); 
+        gap: 10px;
+    }
+
+    .card {
+        padding: 12px;  
+        font-size: 14px; 
+    }
+
+    h1 {
+        font-size: 18px; 
+    }
+
+    .value {
+        font-size: 14px; 
+    }
+}

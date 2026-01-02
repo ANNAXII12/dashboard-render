@@ -21,6 +21,12 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 app.use(express.static(path.join(__dirname, "public")));
 
+// ---------------- Health Check Route for Render ----------------
+app.get("/", (req, res) => {
+    res.send("Dashboard server is running!");
+});
+
+
 const server = app.listen(PORT, () =>
     console.log(`Server running on port ${PORT}`)
 );
